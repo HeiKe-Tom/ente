@@ -273,11 +273,14 @@ class FileBottomBarState extends State<FileBottomBar> {
               color: Colors.white,
             ),
             onPressed: () async {
+              if (widget.file.asTrashFile!.isSystemOnly) {
+                await _permanentlyDeleteFromSystemTrash();
+                return;
+              }
               final trashedFile = <TrashFile>[];
               trashedFile.add(widget.file.asTrashFile!);
-              if (await deleteFromTrash(context, trashedFile) == true) {
-                if (!mounted) return;
-                Navigator.pop(context);
+              if (await deleteFromEnteTrash(context, trashedFile) == true) {
+                widget.onFileRemoved(widget.file);
               }
             },
           ),
@@ -327,5 +330,13 @@ class FileBottomBarState extends State<FileBottomBar> {
     if (restoredIDs.isEmpty) return;
     Bus.instance.fire(ForceReloadTrashPageEvent());
     await widget.onFileRemoved(widget.file);
+  }
+
+  Future<void> _permanentlyDeleteFromSystemTrash() async {
+    final id = widget.file.asTrashFile!.systemTrashID!.toString();
+    final deletedIDs = await PhotoManager.editor.deleteWithIds([id]);
+    if (deletedIDs.isEmpty) return;
+    await widget.onFileRemoved(widget.file);
+    Bus.instance.fire(ForceReloadTrashPageEvent());
   }
 }

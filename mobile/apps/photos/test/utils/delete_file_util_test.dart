@@ -47,7 +47,7 @@ void main() {
       await tester.pumpWidget(
         _TestApp(
           onOpen: (context) async {
-            result = await deleteFromTrash(context, [file]);
+            result = await deleteFromEnteTrash(context, [file]);
           },
         ),
       );
