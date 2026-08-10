@@ -1,5 +1,4 @@
 import "package:photo_manager/photo_manager.dart";
-import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import "package:photos/models/file/file_type.dart";
 
@@ -21,7 +20,11 @@ class EnteTrashFile extends TrashFile {
     required super.deleteBy,
     required this.createdAt,
     required this.updateAt,
-  }) : super.from();
+  }) : super.from() {
+    if (localID != null) {
+      generatedID = -int.parse(localID!);
+    }
+  }
 
   // time when file was put in the trash for first time
   late int createdAt;
@@ -37,7 +40,7 @@ class DeviceTrashFile extends TrashFile {
 
 AssetEntity trashFileToAssetEntity(EnteFile file) {
   return AssetEntity(
-    id: file.asTrashFile!.systemTrashID!.toString(),
+    id: file.localID!,
     typeInt: switch (file.fileType) {
       FileType.image || FileType.livePhoto => AssetType.image.index,
       FileType.video => AssetType.video.index,
