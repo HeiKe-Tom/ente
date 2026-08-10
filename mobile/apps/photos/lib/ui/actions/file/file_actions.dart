@@ -35,27 +35,24 @@ Future<void> showSingleFileDeleteSheet(
         (await isAndroidSDKVersionLowerThan(android11SDKINT) ||
             await PhotoManager.canManageMedia())) {
       if (!context.mounted) return;
-      await showBottomSheetComponent<bool>(
-        context: context,
-        useRootNavigator: Platform.isIOS,
-        builder: (_) => DeleteConfirmationSheet(
-          count: 1,
-          isLocal: isLocal,
-          isRemote: false,
-          onDeleteFromLocal: () async {
-            final deletedFiles = await deleteFilesOnDeviceOnly(context, [file]);
-            if (deletedFiles.isNotEmpty &&
-                ((isLocal && !isRemote) || isLocalOnlyContext)) {
-              onFileRemoved?.call(file);
-            }
-          },
-          onDeleteFromRemote: () async {
-            throw AssertionError("delete from remote in local gallery mode");
-          },
-          onDeleteFromBoth: () async {
-            throw AssertionError("delete from both in local gallery mode");
-          },
-        ),
+      await showDeleteConfirmationSheet(
+        context,
+        count: 1,
+        isLocal: isLocal,
+        isRemote: false,
+        onDeleteFromLocal: () async {
+          final deletedFiles = await deleteFilesOnDeviceOnly(context, [file]);
+          if (deletedFiles.isNotEmpty &&
+              ((isLocal && !isRemote) || isLocalOnlyContext)) {
+            onFileRemoved?.call(file);
+          }
+        },
+        onDeleteFromRemote: () async {
+          throw AssertionError("delete from remote in local gallery mode");
+        },
+        onDeleteFromBoth: () async {
+          throw AssertionError("delete from both in local gallery mode");
+        },
       );
     } else {
       if (!context.mounted) return;
@@ -70,33 +67,30 @@ Future<void> showSingleFileDeleteSheet(
   if (!isLocal && !isRemote) {
     throw AssertionError("Unexpected state");
   }
-  final didDelete = await showBottomSheetComponent<bool>(
-    context: context,
-    useRootNavigator: Platform.isIOS,
-    builder: (_) => DeleteConfirmationSheet(
-      isLocal: isLocal,
-      isRemote: isRemote,
-      count: 1,
-      onDeleteFromLocal: () async {
-        final deletedFiles = await deleteFilesOnDeviceOnly(context, [file]);
-        if (deletedFiles.isNotEmpty &&
-            ((isLocal && !isRemote) || isLocalOnlyContext)) {
-          onFileRemoved?.call(file);
-        }
-      },
-      onDeleteFromRemote: () async {
-        await deleteFilesFromRemoteOnly(context, [file]);
-        if (!context.mounted) return;
-        showShortToast(context, l10n.movedToTrash);
-        if (((isRemote && !isLocal) || !isLocalOnlyContext)) {
-          onFileRemoved?.call(file);
-        }
-      },
-      onDeleteFromBoth: () async {
-        await deleteFilesFromEverywhere(context, [file]);
+  final didDelete = await showDeleteConfirmationSheet(
+    context,
+    isLocal: isLocal,
+    isRemote: isRemote,
+    count: 1,
+    onDeleteFromLocal: () async {
+      final deletedFiles = await deleteFilesOnDeviceOnly(context, [file]);
+      if (deletedFiles.isNotEmpty &&
+          ((isLocal && !isRemote) || isLocalOnlyContext)) {
         onFileRemoved?.call(file);
-      },
-    ),
+      }
+    },
+    onDeleteFromRemote: () async {
+      await deleteFilesFromRemoteOnly(context, [file]);
+      if (!context.mounted) return;
+      showShortToast(context, l10n.movedToTrash);
+      if (((isRemote && !isLocal) || !isLocalOnlyContext)) {
+        onFileRemoved?.call(file);
+      }
+    },
+    onDeleteFromBoth: () async {
+      await deleteFilesFromEverywhere(context, [file]);
+      onFileRemoved?.call(file);
+    },
   );
   if (didDelete == true && isLocal) {
     if (!context.mounted) return;

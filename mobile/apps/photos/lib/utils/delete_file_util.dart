@@ -891,28 +891,23 @@ Future<void> showDeleteSheet(
             await PhotoManager.canManageMedia())) {
       if (!context.mounted) return;
       didDelete =
-          await showBottomSheetComponent<bool>(
-            context: context,
-            useRootNavigator: Platform.isIOS,
-            builder: (_) => DeleteConfirmationSheet(
-              count: localGalleryDeletableFiles.length,
-              isLocal: true,
-              isRemote: false,
-              onDeleteFromLocal: () async {
-                await deleteOnDeviceOnlyAction(
-                  context,
-                  localGalleryDeletableFiles,
-                );
-              },
-              onDeleteFromRemote: () async {
-                throw AssertionError(
-                  "delete from remote in local gallery mode",
-                );
-              },
-              onDeleteFromBoth: () async {
-                throw AssertionError("delete from both in local gallery mode");
-              },
-            ),
+          await showDeleteConfirmationSheet(
+            context,
+            count: localGalleryDeletableFiles.length,
+            isLocal: true,
+            isRemote: false,
+            onDeleteFromLocal: () async {
+              await deleteOnDeviceOnlyAction(
+                context,
+                localGalleryDeletableFiles,
+              );
+            },
+            onDeleteFromRemote: () async {
+              throw AssertionError("delete from remote in local gallery mode");
+            },
+            onDeleteFromBoth: () async {
+              throw AssertionError("delete from both in local gallery mode");
+            },
           ) ==
           true;
     } else {
@@ -945,25 +940,22 @@ Future<void> showDeleteSheet(
   }
 
   var didDeleteLocalFiles = false;
-  final actionResult = await showBottomSheetComponent<bool>(
-    context: context,
-    useRootNavigator: Platform.isIOS,
-    builder: (_) => DeleteConfirmationSheet(
-      isLocal: hasLocalFiles,
-      isRemote: hasRemoteFiles,
-      count: deletableFiles.length,
-      onDeleteFromLocal: () async {
-        await deleteOnDeviceOnlyAction(context, deletableFiles);
-        didDeleteLocalFiles = true;
-      },
-      onDeleteFromRemote: () async {
-        await deleteFromEnte();
-      },
-      onDeleteFromBoth: () async {
-        await deleteFromEverywhereAction(context, deletableFiles);
-        didDeleteLocalFiles = true;
-      },
-    ),
+  final actionResult = await showDeleteConfirmationSheet(
+    context,
+    isLocal: hasLocalFiles,
+    isRemote: hasRemoteFiles,
+    count: deletableFiles.length,
+    onDeleteFromLocal: () async {
+      await deleteOnDeviceOnlyAction(context, deletableFiles);
+      didDeleteLocalFiles = true;
+    },
+    onDeleteFromRemote: () async {
+      await deleteFromEnte();
+    },
+    onDeleteFromBoth: () async {
+      await deleteFromEverywhereAction(context, deletableFiles);
+      didDeleteLocalFiles = true;
+    },
   );
   if (actionResult == true) {
     selectedFiles.clearAll();
@@ -1072,18 +1064,49 @@ class _MoreOptionsButtonState extends State<_MoreOptionsButton> {
   }
 }
 
-class DeleteConfirmationSheet extends StatefulWidget {
+Future<bool?> showDeleteConfirmationSheet(
+  BuildContext context, {
+  required bool isLocal,
+  required bool isRemote,
+  required int count,
+  required Future<void> Function() onDeleteFromLocal,
+  required Future<void> Function() onDeleteFromRemote,
+  required Future<void> Function() onDeleteFromBoth,
+}) async {
+  final isTrashAction =
+      Platform.isIOS ||
+      (Platform.isAndroid &&
+          flagService.internalUser &&
+          !await isAndroidSDKVersionLowerThan(android11SDKINT));
+  if (!context.mounted) return null;
+  return showBottomSheetComponent<bool>(
+    context: context,
+    useRootNavigator: Platform.isIOS,
+    builder: (_) => _DeleteConfirmationSheet(
+      isLocal: isLocal,
+      isRemote: isRemote,
+      isTrashAction: isTrashAction,
+      count: count,
+      onDeleteFromLocal: onDeleteFromLocal,
+      onDeleteFromRemote: onDeleteFromRemote,
+      onDeleteFromBoth: onDeleteFromBoth,
+    ),
+  );
+}
+
+class _DeleteConfirmationSheet extends StatefulWidget {
   final bool isLocal;
   final bool isRemote;
+  final bool isTrashAction;
   final int count;
   final Future<void> Function() onDeleteFromLocal;
   final Future<void> Function() onDeleteFromRemote;
   final Future<void> Function() onDeleteFromBoth;
 
-  const DeleteConfirmationSheet({
-    super.key,
+  const _DeleteConfirmationSheet({
     required this.isLocal,
     required this.isRemote,
+    required this.isTrashAction,
     required this.count,
     required this.onDeleteFromLocal,
     required this.onDeleteFromRemote,
@@ -1092,11 +1115,11 @@ class DeleteConfirmationSheet extends StatefulWidget {
 
   @override
   State<StatefulWidget> createState() {
-    return DeleteConfirmationSheetState();
+    return _DeleteConfirmationSheetState();
   }
 }
 
-class DeleteConfirmationSheetState extends State<DeleteConfirmationSheet> {
+class _DeleteConfirmationSheetState extends State<_DeleteConfirmationSheet> {
   var _isMoreOptionsShown = false;
   var _isSetAsDefaultSelected = false;
 
@@ -1136,12 +1159,14 @@ class DeleteConfirmationSheetState extends State<DeleteConfirmationSheet> {
   Widget build(BuildContext context) {
     final l10n = context.strings;
     final title = l10n.deleteItemsQuestion(count: widget.count);
-    var body = l10n.selectedFilesSavedOnDeviceOnly;
+    var body = widget.isTrashAction
+        ? l10n.filesCanBeRestoredFromTrash(count: widget.count)
+        : l10n.selectedFilesSavedOnDeviceOnly;
     if (widget.count == 1 && widget.isLocal && widget.isRemote) {
       body = l10n.singleFileInBothLocalAndRemote;
     } else if (widget.count == 1 && widget.isRemote) {
       body = l10n.singleFileInRemoteOnly;
-    } else if (widget.count == 1 && widget.isLocal) {
+    } else if (widget.count == 1 && widget.isLocal && !widget.isTrashAction) {
       body = l10n.singleFileDeleteFromDevice;
     } else if (widget.isLocal && widget.isRemote) {
       body = l10n.someSelectedFilesBackedUpToEnte;
