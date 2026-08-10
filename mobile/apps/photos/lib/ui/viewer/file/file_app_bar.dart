@@ -286,14 +286,17 @@ class FileAppBarState extends State<FileAppBar> {
         ),
       );
     }
-    if (!isFileHidden && isFileUploaded && widget.file is! TrashFile) {
+    if (!isFileHidden && isFileUploaded && widget.file.asTrashFile == null) {
       _actions.add(
         Center(
           child: FavoriteWidget(widget.file, iconSize: 24, tapTargetSize: 48),
         ),
       );
     }
-    if (!isFileUploaded && !isLocalGalleryMode) {
+
+    if (!isFileUploaded &&
+        widget.file.asTrashFile == null &&
+        !isLocalGalleryMode) {
       _actions.add(
         UploadIconWidget(file: widget.file, key: ValueKey(widget.file.tag)),
       );

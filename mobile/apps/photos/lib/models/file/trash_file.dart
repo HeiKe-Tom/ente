@@ -1,4 +1,7 @@
+import "package:photo_manager/photo_manager.dart";
+import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
+import "package:photos/models/file/file_type.dart";
 
 class TrashFile extends EnteFile {
   TrashFile();
@@ -28,4 +31,17 @@ class TrashFile extends EnteFile {
 
   // The local file ID of this file if there is a corresponding entry in the system trash on this device, this may be != localID
   int? systemTrashID;
+}
+
+AssetEntity trashFileToAssetEntity(EnteFile file) {
+  return AssetEntity(
+    id: file.asTrashFile!.systemTrashID!.toString(),
+    typeInt: switch (file.fileType) {
+      FileType.image || FileType.livePhoto => AssetType.image.index,
+      FileType.video => AssetType.video.index,
+      FileType.other => AssetType.other.index,
+    },
+    width: 0,
+    height: 0,
+  );
 }
