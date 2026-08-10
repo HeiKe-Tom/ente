@@ -13,7 +13,11 @@ class TrashFile extends EnteFile {
     required this.deleteBy,
     required this.isSystemOnly,
     required this.systemTrashID,
-  }) : super.from();
+  }) : super.from() {
+    if (systemTrashID != null) {
+      generatedID = -systemTrashID!;
+    }
+  }
 
   // time when file was put in the trash for first time
   late int createdAt;
