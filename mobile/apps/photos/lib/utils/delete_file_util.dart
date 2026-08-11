@@ -1397,9 +1397,7 @@ Future<void> permanentlyDeleteFromSystemTrash(
 }
 
 Future<void> _deleteFromSystemTrash(SelectedFiles selectedFiles) async {
-  final fileIDs = selectedFiles.files
-      .map((f) => f.localID!)
-      .toList();
+  final fileIDs = selectedFiles.files.map((f) => f.localID!).toList();
   final deletedIDs = <String>{};
   try {
     for (final batch in fileIDs.chunks(batchSize)) {
