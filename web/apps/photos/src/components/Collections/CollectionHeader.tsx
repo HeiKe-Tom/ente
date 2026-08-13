@@ -26,6 +26,7 @@ import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { Box, IconButton, Menu, Stack, Tooltip } from "@mui/material";
+import { isDesktop } from "ente-base/app";
 import { SpacedRow } from "ente-base/components/containers";
 import { ActivityIndicator } from "ente-base/components/mui/ActivityIndicator";
 import {
@@ -73,7 +74,7 @@ import {
 import { emptyTrash } from "ente-new/photos/services/trash";
 import { usePhotosAppContext } from "ente-new/photos/types/context";
 import { t } from "i18next";
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Trans } from "react-i18next";
 
 export interface CollectionHeaderProps {
@@ -418,15 +419,32 @@ const CollectionHeaderOptions: React.FC<CollectionHeaderProps> = ({
         await deleteShareURL(activeCollection.id);
     });
 
+    const [desktopFileSortOrder, setDesktopFileSortOrder] = useState(() => {
+        if (!isDesktop) return "date-desc";
+        const value = localStorage.getItem("enteDesktopFileSortOrder");
+        return value === "filename-asc" || value === "filename-desc"
+            ? value
+            : "date-desc";
+    });
+
     const changeSortOrderAsc = wrap(async () => {
+        if (isDesktop) localStorage.removeItem("enteDesktopFileSortOrder");
         if (!activeCollection) return;
         await updateCollectionSortOrder(activeCollection, true);
     });
 
     const changeSortOrderDesc = wrap(async () => {
+        if (isDesktop) localStorage.removeItem("enteDesktopFileSortOrder");
         if (!activeCollection) return;
         await updateCollectionSortOrder(activeCollection, false);
     });
+
+    const changeDesktopFilenameSort = (order: "filename-asc" | "filename-desc") => {
+        if (!isDesktop) return;
+        localStorage.setItem("enteDesktopFileSortOrder", order);
+        setDesktopFileSortOrder(order);
+        window.location.reload();
+    };
 
     let menuOptions: React.ReactNode[] = [];
     // MUI rejects fragments here, so return keyed arrays.
@@ -728,8 +746,11 @@ const CollectionHeaderOptions: React.FC<CollectionHeaderProps> = ({
                 {...sortOrderMenuVisibilityProps}
                 overflowMenuIconRef={overflowMenuIconRef}
                 sortAsc={activeCollection?.pubMagicMetadata?.data.asc ?? false}
+                desktopFileSortOrder={desktopFileSortOrder}
                 onAscClick={changeSortOrderAsc}
                 onDescClick={changeSortOrderDesc}
+                onFilenameAscClick={() => changeDesktopFilenameSort("filename-asc")}
+                onFilenameDescClick={() => changeDesktopFilenameSort("filename-desc")}
             />
             <SingleInputDialog
                 {...albumNameInputVisibilityProps}
@@ -1066,8 +1087,11 @@ interface CollectionSortOrderMenuProps {
     onClose: () => void;
     overflowMenuIconRef: React.RefObject<SVGSVGElement | null>;
     sortAsc: boolean;
+    desktopFileSortOrder: string;
     onAscClick: () => void;
     onDescClick: () => void;
+    onFilenameAscClick: () => void;
+    onFilenameDescClick: () => void;
 }
 
 const CollectionSortOrderMenu: React.FC<CollectionSortOrderMenuProps> = ({
@@ -1075,8 +1099,11 @@ const CollectionSortOrderMenu: React.FC<CollectionSortOrderMenuProps> = ({
     onClose,
     overflowMenuIconRef,
     sortAsc,
+    desktopFileSortOrder,
     onAscClick,
     onDescClick,
+    onFilenameAscClick,
+    onFilenameDescClick,
 }) => {
     const handleAscClick = () => {
         onAscClick();
@@ -1105,16 +1132,50 @@ const CollectionSortOrderMenu: React.FC<CollectionSortOrderMenuProps> = ({
         >
             <OverflowMenuOption
                 onClick={handleDescClick}
-                endIcon={!sortAsc ? <CheckIcon /> : undefined}
+                endIcon={desktopFileSortOrder === "date-desc" && !sortAsc ? <CheckIcon /> : undefined}
             >
                 {t("newest_first")}
             </OverflowMenuOption>
             <OverflowMenuOption
                 onClick={handleAscClick}
-                endIcon={sortAsc ? <CheckIcon /> : undefined}
+                endIcon={
+                    desktopFileSortOrder === "date-desc" && sortAsc
+                        ? <CheckIcon />
+                        : undefined
+                }
             >
                 {t("oldest_first")}
             </OverflowMenuOption>
+            {isDesktop && (
+                <>
+                    <OverflowMenuOption
+                        onClick={() => {
+                            onFilenameAscClick();
+                            onClose();
+                        }}
+                        endIcon={
+                            desktopFileSortOrder === "filename-asc"
+                                ? <CheckIcon />
+                                : undefined
+                        }
+                    >
+                        文件名 A → Z
+                    </OverflowMenuOption>
+                    <OverflowMenuOption
+                        onClick={() => {
+                            onFilenameDescClick();
+                            onClose();
+                        }}
+                        endIcon={
+                            desktopFileSortOrder === "filename-desc"
+                                ? <CheckIcon />
+                                : undefined
+                        }
+                    >
+                        文件名 Z → A
+                    </OverflowMenuOption>
+                </>
+            )}
         </Menu>
     );
 };

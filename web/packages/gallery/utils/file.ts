@@ -1,7 +1,38 @@
 import type { EnteFile } from "ente-media/file";
-import { fileCreationPhotoSortTime } from "ente-media/file-metadata";
+import { fileCreationPhotoSortTime, fileFileName } from "ente-media/file-metadata";
+
+export type DesktopFileSortOrder =
+    | "date-desc"
+    | "date-asc"
+    | "filename-asc"
+    | "filename-desc";
+
+const desktopFileSortOrder = (): DesktopFileSortOrder | undefined => {
+    if (typeof window === "undefined" || !("electron" in globalThis)) {
+        return undefined;
+    }
+    const value = window.localStorage.getItem("enteDesktopFileSortOrder");
+    return value === "date-asc" ||
+        value === "filename-asc" ||
+        value === "filename-desc" ||
+        value === "date-desc"
+        ? value
+        : undefined;
+};
 
 export const sortFiles = (files: EnteFile[], sortAsc = false) => {
+    const desktopOrder = desktopFileSortOrder();
+    if (desktopOrder === "filename-asc" || desktopOrder === "filename-desc") {
+        const collator = new Intl.Collator(undefined, {
+            numeric: true,
+            sensitivity: "base",
+        });
+        const factor = desktopOrder === "filename-asc" ? 1 : -1;
+        return files.sort(
+            (a, b) => factor * collator.compare(fileFileName(a), fileFileName(b)),
+        );
+    }
+
     // Break equal displayed creation dates by modification time.
     const factor = sortAsc ? -1 : 1;
     const sortTimeByFile = new Map<EnteFile, number>();
