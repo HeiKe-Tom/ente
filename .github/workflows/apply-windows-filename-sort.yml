@@ -1,16 +1,13 @@
 name: Apply Windows filename sort
 
 on:
-  push:
-    branches:
-      - feature/windows-filename-sort
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: ${{ !startsWith(github.event.head_commit.message, 'Apply Windows filename sort') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,82 +15,22 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 1
 
-      - name: Patch filename sorting
+      - name: Verify filename sort patch
         run: |
-          python3 <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
 
-          # 1. Make the shared gallery sorter honor a Windows-only local sort mode.
-          p = Path("web/packages/gallery/utils/file.ts")
-          s = p.read_text()
-          s = s.replace(
-              'import { fileCreationPhotoSortTime } from "ente-media/file-metadata";',
-              'import { fileCreationPhotoSortTime, fileFileName } from "ente-media/file-metadata";',
-          )
-          old = '''export const sortFiles = (files: EnteFile[], sortAsc = false) => {\n    // Break equal displayed creation dates by modification time.\n    const factor = sortAsc ? -1 : 1;\n'''
-          new = '''export type DesktopFileSortOrder =\n    | "date-desc"\n    | "date-asc"\n    | "filename-asc"\n    | "filename-desc";\n\nconst desktopFileSortOrder = (): DesktopFileSortOrder | undefined => {\n    if (typeof window === "undefined" || !("electron" in globalThis)) {\n        return undefined;\n    }\n    const value = window.localStorage.getItem("enteDesktopFileSortOrder");\n    return value === "date-asc" ||\n        value === "filename-asc" ||\n        value === "filename-desc" ||\n        value === "date-desc"\n        ? value\n        : undefined;\n};\n\nexport const sortFiles = (files: EnteFile[], sortAsc = false) => {\n    const desktopOrder = desktopFileSortOrder();\n    if (desktopOrder === "filename-asc" || desktopOrder === "filename-desc") {\n        const collator = new Intl.Collator(undefined, {\n            numeric: true,\n            sensitivity: "base",\n        });\n        const factor = desktopOrder === "filename-asc" ? 1 : -1;\n        return files.sort(\n            (a, b) => factor * collator.compare(fileFileName(a), fileFileName(b)),\n        );\n    }\n\n    // Break equal displayed creation dates by modification time.\n    const factor = sortAsc ? -1 : 1;\n'''
-          if old not in s:
-              raise SystemExit("sortFiles anchor not found")
-          s = s.replace(old, new, 1)
-          p.write_text(s)
+          sorter = Path("web/packages/gallery/utils/file.ts").read_text()
+          header = Path("web/apps/photos/src/components/Collections/CollectionHeader.tsx").read_text()
 
-          # 2. Add Windows-only filename choices to the existing album sort menu.
-          p = Path("web/apps/photos/src/components/Collections/CollectionHeader.tsx")
-          s = p.read_text()
-          s = s.replace(
-              'import { SpacedRow } from "ente-base/components/containers";',
-              'import { isDesktop } from "ente-base/app";\nimport { SpacedRow } from "ente-base/components/containers";',
-          )
-          s = s.replace(
-              'import React, { useCallback, useRef } from "react";',
-              'import React, { useCallback, useRef, useState } from "react";',
-          )
-
-          old = '''    const changeSortOrderAsc = wrap(async () => {\n        if (!activeCollection) return;\n        await updateCollectionSortOrder(activeCollection, true);\n    });\n\n    const changeSortOrderDesc = wrap(async () => {\n        if (!activeCollection) return;\n        await updateCollectionSortOrder(activeCollection, false);\n    });\n'''
-          new = '''    const [desktopFileSortOrder, setDesktopFileSortOrder] = useState(() => {\n        if (!isDesktop) return "date-desc";\n        const value = localStorage.getItem("enteDesktopFileSortOrder");\n        return value === "filename-asc" || value === "filename-desc"\n            ? value\n            : "date-desc";\n    });\n\n    const changeSortOrderAsc = wrap(async () => {\n        if (isDesktop) localStorage.removeItem("enteDesktopFileSortOrder");\n        if (!activeCollection) return;\n        await updateCollectionSortOrder(activeCollection, true);\n    });\n\n    const changeSortOrderDesc = wrap(async () => {\n        if (isDesktop) localStorage.removeItem("enteDesktopFileSortOrder");\n        if (!activeCollection) return;\n        await updateCollectionSortOrder(activeCollection, false);\n    });\n\n    const changeDesktopFilenameSort = (order: "filename-asc" | "filename-desc") => {\n        if (!isDesktop) return;\n        localStorage.setItem("enteDesktopFileSortOrder", order);\n        setDesktopFileSortOrder(order);\n        window.location.reload();\n    };\n'''
-          if old not in s:
-              raise SystemExit("sort handlers anchor not found")
-          s = s.replace(old, new, 1)
-
-          old = '''                sortAsc={activeCollection?.pubMagicMetadata?.data.asc ?? false}\n                onAscClick={changeSortOrderAsc}\n                onDescClick={changeSortOrderDesc}\n            />'''
-          new = '''                sortAsc={activeCollection?.pubMagicMetadata?.data.asc ?? false}\n                desktopFileSortOrder={desktopFileSortOrder}\n                onAscClick={changeSortOrderAsc}\n                onDescClick={changeSortOrderDesc}\n                onFilenameAscClick={() => changeDesktopFilenameSort("filename-asc")}\n                onFilenameDescClick={() => changeDesktopFilenameSort("filename-desc")}\n            />'''
-          if old not in s:
-              raise SystemExit("sort menu props anchor not found")
-          s = s.replace(old, new, 1)
-
-          old = '''interface CollectionSortOrderMenuProps {\n    open: boolean;\n    onClose: () => void;\n    overflowMenuIconRef: React.RefObject<SVGSVGElement | null>;\n    sortAsc: boolean;\n    onAscClick: () => void;\n    onDescClick: () => void;\n}'''
-          new = '''interface CollectionSortOrderMenuProps {\n    open: boolean;\n    onClose: () => void;\n    overflowMenuIconRef: React.RefObject<SVGSVGElement | null>;\n    sortAsc: boolean;\n    desktopFileSortOrder: string;\n    onAscClick: () => void;\n    onDescClick: () => void;\n    onFilenameAscClick: () => void;\n    onFilenameDescClick: () => void;\n}'''
-          if old not in s:
-              raise SystemExit("sort menu interface anchor not found")
-          s = s.replace(old, new, 1)
-
-          old = '''const CollectionSortOrderMenu: React.FC<CollectionSortOrderMenuProps> = ({\n    open,\n    onClose,\n    overflowMenuIconRef,\n    sortAsc,\n    onAscClick,\n    onDescClick,\n}) => {'''
-          new = '''const CollectionSortOrderMenu: React.FC<CollectionSortOrderMenuProps> = ({\n    open,\n    onClose,\n    overflowMenuIconRef,\n    sortAsc,\n    desktopFileSortOrder,\n    onAscClick,\n    onDescClick,\n    onFilenameAscClick,\n    onFilenameDescClick,\n}) => {'''
-          if old not in s:
-              raise SystemExit("sort menu component anchor not found")
-          s = s.replace(old, new, 1)
-
-          old = '''            <OverflowMenuOption\n                onClick={handleAscClick}\n                endIcon={sortAsc ? <CheckIcon /> : undefined}\n            >\n                {t("oldest_first")}\n            </OverflowMenuOption>\n        </Menu>'''
-          new = '''            <OverflowMenuOption\n                onClick={handleAscClick}\n                endIcon={\n                    desktopFileSortOrder === "date-desc" && sortAsc\n                        ? <CheckIcon />\n                        : undefined\n                }\n            >\n                {t("oldest_first")}\n            </OverflowMenuOption>\n            {isDesktop && (\n                <>\n                    <OverflowMenuOption\n                        onClick={() => {\n                            onFilenameAscClick();\n                            onClose();\n                        }}\n                        endIcon={\n                            desktopFileSortOrder === "filename-asc"\n                                ? <CheckIcon />\n                                : undefined\n                        }\n                    >\n                        文件名 A → Z\n                    </OverflowMenuOption>\n                    <OverflowMenuOption\n                        onClick={() => {\n                            onFilenameDescClick();\n                            onClose();\n                        }}\n                        endIcon={\n                            desktopFileSortOrder === "filename-desc"\n                                ? <CheckIcon />\n                                : undefined\n                        }\n                    >\n                        文件名 Z → A\n                    </OverflowMenuOption>\n                </>\n            )}\n        </Menu>'''
-          if old not in s:
-              raise SystemExit("sort menu body anchor not found")
-          s = s.replace(old, new, 1)
-
-          # Also make the newest-first check reflect filename mode correctly.
-          s = s.replace(
-              'endIcon={!sortAsc ? <CheckIcon /> : undefined}',
-              'endIcon={desktopFileSortOrder === "date-desc" && !sortAsc ? <CheckIcon /> : undefined}',
-              1,
-          )
-
-          p.write_text(s)
-          PY
-
-      - name: Commit patch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/packages/gallery/utils/file.ts web/apps/photos/src/components/Collections/CollectionHeader.tsx
-          git diff --cached --check
-          git commit -m "Apply Windows filename sort"
-          git push
+          required = [
+              "DesktopFileSortOrder",
+              "filename-asc",
+              "filename-desc",
+              "文件名 A → Z",
+              "文件名 Z → A",
+          ]
+          missing = [x for x in required if x not in sorter + header]
+          if missing:
+              raise SystemExit("Filename sort patch is incomplete: " + ", ".join(missing))
+          print("Filename sort patch is already present; nothing to apply.")
