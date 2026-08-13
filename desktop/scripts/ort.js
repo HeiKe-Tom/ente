@@ -110,7 +110,8 @@ const stageONNXRuntime = async (platform, arch, appDir) => {
 };
 
 const installONNXRuntime = async (platform, appDir) => {
-    for (const arch of ["arm64", "x64"])
+    const arches = platform == "darwin" ? ["arm64", "x64"] : [process.arch];
+    for (const arch of arches)
         await downloadONNXRuntimeIfNeeded(platform, arch, appDir);
 };
 
