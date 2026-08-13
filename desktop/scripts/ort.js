@@ -8,8 +8,6 @@ const ortVersion = "1.28.0-r3";
 // Our packaging enables CoreML on macOS and WebGPU elsewhere.
 const ortReleaseURL = `https://github.com/ente/ort-packaging/releases/download/ort-${ortVersion}`;
 
-// When changing ortVersion, verify the archives and update these from the
-// release's .sha256 sidecars.
 const ortAssetSHA256s = {
     "darwin-arm64":
         "5f5bf25a65756c25ab13b331c90d5b4324e59bb669dfc1b3bf2d060a8760c0f3",
@@ -44,6 +42,28 @@ const archesForTarget = (platform, arch) =>
 const installDir = (appDir) =>
     path.join(appDir, "node_modules", ".cache", "ente-onnxruntime");
 
+const extractArchive = (platform, archive, outDir) => {
+    if (platform == "win32") {
+        // GitHub Actions' GNU tar does not extract ZIP archives reliably.
+        // Use the Windows-native ZIP extractor instead.
+        execFileSync(
+            "powershell.exe",
+            [
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force",
+                archive,
+                outDir,
+            ],
+            { windowsHide: true },
+        );
+        return;
+    }
+
+    execFileSync("tar", ["-xf", archive], { cwd: outDir });
+};
+
 const downloadONNXRuntimeIfNeeded = async (platform, arch, appDir) => {
     const asset = ortAssetName(platform, arch);
     const outDir = path.join(installDir(appDir), arch);
@@ -72,8 +92,7 @@ const downloadONNXRuntimeIfNeeded = async (platform, arch, appDir) => {
     await fsp.mkdir(outDir, { recursive: true });
     const archivePath = path.join(outDir, asset);
     await fsp.writeFile(archivePath, archive);
-    // Windows ships bsdtar, which also extracts zip archives.
-    execFileSync("tar", ["-xf", asset], { cwd: outDir });
+    extractArchive(platform, asset, outDir);
     await fsp.rm(archivePath);
     await fsp.writeFile(stampPath, asset);
 };
