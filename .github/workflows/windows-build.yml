@@ -47,6 +47,12 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Install desktop native/runtime dependencies
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run postinstall
+
       - name: Generate NAPI bindings
         working-directory: desktop
         run: npm run codegen:napi
@@ -55,7 +61,7 @@ jobs:
         working-directory: desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run build-main -- --win --x64
+        run: npm run build-main -- --win --x64 --publish never
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
